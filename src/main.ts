@@ -512,13 +512,14 @@ function addMushroom(def: MushroomDef) {
 }
 
 const MUSHROOMS: MushroomDef[] = [
-  { x: 100, y: 1940, dir: "right", power: 1 },
+  { x: 40, y: 1940, dir: "right", power: 1 },
   { x: 420, y: 2200, dir: "left", power: 1 },
   { x: 110, y: 1520, dir: "right", power: 1 },
   { x: 310, y: 1640, dir: "left", power: 1 },
   { x: 120, y: 1260, dir: "right", power: 1 },
   { x: 470, y: 1440, dir: "left", power: 1 },
   { x: 260, y: 1360, dir: "right", power: 1 },
+  { x: 120, y: 2100, dir: "right", power: 1 },
 ];
 
 for (const m of MUSHROOMS) addMushroom(m);
