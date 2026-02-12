@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marble PinBoll</title>
+    <link rel="stylesheet" href="./src/style.css" />
+    <link rel="icon" href="./public/favicon.ico" />
+  </head>
+  <body>
+    <div id="app">
+      <div class="layout">
+        <div class="panel">
+          <h1 class="title">Marble PinBoll</h1>
+          <p class="hint">
+            이름을 쉼표로 구분해서 입력해줘.<br />
+            예: <b>짱구, 짱아, 봉미선, 등</b><br />
+          </p>
+
+          <textarea id="names" placeholder="이름 입력 (쉼표로 구분)"></textarea>
+
+          <!--  추가: 지목 등수 -->
+          <div class="field">
+            <label for="targetRank">지목 등수</label>
+            <input id="targetRank" type="number" min="1" value="3" />
+          </div>
+
+          <div class="row">
+            <button id="start">START</button>
+            <button id="reset">RESET</button>
+          </div>
+
+          <div class="stat">
+            <div>대기: <b id="queue">0</b> / 최대: <b id="max">10</b></div>
+            <div>상태: <b id="status">idle</b></div>
+          </div>
+
+          <div style="margin-top: 12px; font-weight: 800">Recording</div>
+          <ul id="log"></ul>
+        </div>
+
+        <div class="stage">
+          <div class="pointer" aria-hidden="true"></div>
+          <div id="game"></div>
+
+          <!--  추가: 꼴찌 공 미니 카메라 -->
+          <div class="mini">
+            <div class="mini-title">Last</div>
+            <div id="mini"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
