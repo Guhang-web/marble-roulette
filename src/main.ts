@@ -1,20 +1,11 @@
 import Matter from "matter-js";
 
-const {
-  Engine,
-  Render,
-  Runner,
-  Bodies,
-  Body,
-  Composite,
-  Events,
-  Vector,
-} = Matter;
+const { Engine, Render, Bodies, Body, Composite, Events, Vector } = Matter;
 
 /* =======================
    Debug
 ======================= */
-const DEBUG_VIEW_GOAL = false;  // 시작 전에도 골인쪽 보며 튜닝할 때 true
+const DEBUG_VIEW_GOAL = false; // 시작 전에도 골인쪽 보며 튜닝할 때 true
 const DEBUG_SPAWN_ONE = false; // 필요하면 true (공 1개만 미리 생성)
 
 /* =======================
@@ -42,6 +33,12 @@ const CAMERA_SMOOTH = 0.12;
 const MINI_H = 160;
 const MINI_W = 220;
 const MINI_MARGIN = 18;
+
+/* =======================
+   고속 낙하 터널링 방지(중요)
+======================= */
+const FIXED_DT = 1000 / 60; // 60fps 고정
+const MAX_BALL_SPEED = 26;  // 22~30 사이 튜닝 추천
 
 /* =======================
    DOM
@@ -100,6 +97,9 @@ function getTargetRank(maxRank: number) {
 ======================= */
 const engine = Engine.create();
 engine.gravity.y = 1.15;
+engine.positionIterations = 10;   // 기본 6 → 10~12 추천
+engine.velocityIterations = 8;    // 기본 4 → 6~8 추천
+engine.constraintIterations = 4;  // 기본 2 → 3~4 추천
 const world = engine.world;
 
 /* 메인 렌더 */
@@ -130,16 +130,32 @@ const miniRender = Render.create({
 });
 Render.run(miniRender);
 
-/* 러너 */
-const runner = Runner.create();
-Runner.run(runner, engine);
-
 /* 픽셀비율: 초기 1회 */
 (Render as any).setPixelRatio?.(render, window.devicePixelRatio || 1);
 (Render as any).setPixelRatio?.(miniRender, window.devicePixelRatio || 1);
 
 /* 미니뷰 랩퍼 기본 숨김 */
 miniWrap.style.display = "none";
+
+/* =======================
+   고정 타임스텝 루프 (Runner 대체)
+======================= */
+let lastRAF = performance.now();
+let acc = 0;
+
+(function loop(now: number) {
+  const frame = now - lastRAF;
+  lastRAF = now;
+
+  // 탭 전환/렉으로 dt 폭주 방지
+  acc += Math.min(frame, 100);
+
+  while (acc >= FIXED_DT) {
+    Engine.update(engine, FIXED_DT);
+    acc -= FIXED_DT;
+  }
+  requestAnimationFrame(loop);
+})(lastRAF);
 
 /* =======================
    카메라 유틸
@@ -227,14 +243,13 @@ function addPeg(x: number, y: number, r = 7) {
 
 /* =======================
    Rotating Obstacle (Spinner)
-   - 가운데 노란 회전 막대
 ======================= */
 const SPINNER_X = W / 2;
 const SPINNER_Y = 760;
 const SPINNER_LEN = 440;
 const SPINNER_THICK = 14;
 const SPINNER_HUB_R = 18;
-const SPINNER_SPEED = 0.045; // 아래에서 dt 보정
+const SPINNER_SPEED = 0.045; // (60fps 기준 step 보정식에 사용)
 
 const spinnerBar = Bodies.rectangle(
   SPINNER_X,
@@ -272,12 +287,7 @@ type MovingBar = {
   phase: number;
 };
 
-function createMovingBar(
-  x: number,
-  y: number,
-  len: number,
-  color: string
-): Matter.Body {
+function createMovingBar(x: number, y: number, len: number, color: string) {
   return Bodies.rectangle(x, y, len, BAR_THICK, {
     isStatic: true,
     label: "mover",
@@ -309,7 +319,7 @@ const STAR_Y = 2000;
 const STAR_LEN = 290;
 const STAR_THICK = 12;
 const STAR_HUB_R = 16;
-const STAR_SPEED = 1.9;
+const STAR_SPEED = 1.9; // rad/sec
 
 function createStar(x: number, y: number) {
   const a0 = Bodies.rectangle(x, y, STAR_LEN, STAR_THICK, {
@@ -345,7 +355,7 @@ const star = createStar(STAR_X, STAR_Y);
 Composite.add(world, [redBar1, redBar2, star]);
 
 /* =======================
-   아래 노란 나무 회전 (goal 만든 뒤 추가)
+   아래 노란 나무 회전
 ======================= */
 const WOOD_LEN = 180;
 const WOOD_THICK = 12;
@@ -467,8 +477,8 @@ Composite.add(world, [floorL, floorR, goalSensor, postL, postR, slopeL, slopeR])
 type MushroomDef = {
   x: number;
   y: number;
-  dir?: "right" | "left"; // 발사 방향
-  power?: number;         // 발사 세기 스케일
+  dir?: "right" | "left";
+  power?: number;
 };
 
 function addMushroom(def: MushroomDef) {
@@ -661,13 +671,15 @@ function finishBall(ball: Matter.Body) {
 }
 
 /* =======================
-   전원 골인 보장 로직 + 장애물 업데이트
+   전원 골인 보장 로직 + 장애물 업데이트 + 속도 제한
+   (beforeUpdate 1개로 통합)
 ======================= */
 Events.on(engine, "beforeUpdate", () => {
   if (!running) return;
 
-  const dt = runner.delta; // ms
+  const dt = FIXED_DT; //  runner.delta 대신 고정 dt 사용
   const dtSec = dt / 1000;
+
   obstacleTime += dtSec;
 
   // Spinner 회전 (60fps 기준 보정)
@@ -696,6 +708,14 @@ Events.on(engine, "beforeUpdate", () => {
   for (const body of Composite.allBodies(world)) {
     if (body.label !== "ball") continue;
     if (finished.has(body.id)) continue;
+
+    //  고속 낙하 터널링 방지: 속도 상한
+    const v = body.velocity;
+    const speed = Math.hypot(v.x, v.y);
+    if (speed > MAX_BALL_SPEED) {
+      const s = MAX_BALL_SPEED / speed;
+      Body.setVelocity(body, { x: v.x * s, y: v.y * s });
+    }
 
     const dx = gx - body.position.x;
     const dy = gy - body.position.y;
@@ -734,10 +754,8 @@ Events.on(engine, "collisionStart", (evt) => {
     }
 
     // (2) mushroom spring kick
-    const spring =
-      a.label === "mushSpring" ? a : b.label === "mushSpring" ? b : null;
-    const ball2 =
-      a.label === "ball" ? a : b.label === "ball" ? b : null;
+    const spring = a.label === "mushSpring" ? a : b.label === "mushSpring" ? b : null;
+    const ball2 = a.label === "ball" ? a : b.label === "ball" ? b : null;
 
     if (!spring || !ball2) continue;
     if (finished.has(ball2.id)) continue;
@@ -811,14 +829,14 @@ function getLeaderAndLast() {
   }
 
   let leader = balls[0];
-  let last = balls[0];
+  let lastB = balls[0];
 
   for (const b of balls) {
     if (b.position.y > leader.position.y) leader = b;
-    if (b.position.y < last.position.y) last = b;
+    if (b.position.y < lastB.position.y) lastB = b;
   }
 
-  return { leader, last };
+  return { leader, last: lastB };
 }
 
 function isBodyInMainView(body: Matter.Body) {
@@ -934,7 +952,15 @@ btnStart.addEventListener("click", () => {
     addLog("⚠️ 이름을 1개 이상 입력해줘!");
     return;
   }
+
   startRace(names);
+
+  //  Start 눌렀을 때만, 880px 미만에서만 이동
+  if (window.matchMedia("(max-width: 879px)").matches) {
+    requestAnimationFrame(() => {
+      gameHost.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 });
 
 btnReset.addEventListener("click", () => {

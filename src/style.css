@@ -156,8 +156,69 @@ canvas {
   border-radius: 999px;
 }
 
+/* 1) 레이아웃: 2열 → 1열 (이미 880px에 있음. 유지 OK) */
 @media (max-width: 880px) {
   .layout {
     grid-template-columns: 1fr;
+  }
+
+  .stage {
+    justify-self: center;
+  }
+}
+
+/* 2) 모바일 디테일: 768px부터 */
+@media (max-width: 768px) {
+  #app {
+    padding: 12px;
+    place-items: start; 
+  }
+
+  .panel {
+    border-radius: 14px;
+    padding: 12px;
+  }
+
+  .row {
+    gap: 10px;
+  }
+
+  button {
+    padding: 12px 12px;
+  }
+
+  textarea {
+    height: 96px;
+  }
+
+  canvas {
+    width: 100%;
+    height: auto;
+    max-width: calc(100vw - 24px);
+  }
+
+  .mini {
+    right: 12px;
+    top: 12px;
+    transform: scale(0.9);
+    transform-origin: top right;
+  }
+}
+
+@media (max-width: 420px) {
+  .title {
+    font-size: 16px;
+  }
+
+  .hint {
+    font-size: 11px;
+  }
+
+  .field input {
+    width: 90px;
+  }
+
+  .mini {
+    transform: scale(0.82);
   }
 }
