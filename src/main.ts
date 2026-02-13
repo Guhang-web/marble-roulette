@@ -11,7 +11,7 @@ const DEBUG_SPAWN_ONE = false; // 필요하면 true (공 1개만 미리 생성)
 /* =======================
    View / World
 ======================= */
-const W = 520;
+const W = 480;
 const VIEW_H = 760;
 const WORLD_H = 2500;
 const MAX_BALLS = 10;
